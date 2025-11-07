@@ -1,0 +1,6 @@
+TODO List:
+1. find dataset of C/CPP code to feed into Model of some discription 
+2. make inference graph generator 
+3. mess around with LSTMs to examine efficacy
+  3.1. if we find a GNN that doesnt require a cromatic number then thats also cool but not necessary for the project
+4. decide on a model to use for this project
