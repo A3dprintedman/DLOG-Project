@@ -789,9 +789,25 @@ void recursively_populate(Edge_list_funcs * el_list, int func_idx, int * vidx_of
     rhs->cur_depth--;
 }
 
+void cleanup(Edge_list_funcs * el_list, Recursion_helper_stack * rhs, int numfuncs)
+{
+    for (int i = 0; i < numfuncs; i++)
+    {
+        for (int j = 0; j < el_list[i].num_funcs; j++)
+        {
+            free(el_list[i].calls[j].neighbors);
+        }
+        free(el_list[i].calls);
+        free(el_list[i].edges);
+    }
+    free(rhs->helper);
+    free(el_list);
+    free(rhs);
+}
+
 void generate_all_edge_lists(IRFuncs &funcs, char* fl_name, int recursive)
 {
-    FILE* fp;
+    FILE* fp = NULL;
     Edge_list_funcs * el = (Edge_list_funcs*) malloc(sizeof(Edge_list_funcs) * funcs.func_size);
     int main_idx = -1;
     size_t i;
@@ -816,16 +832,23 @@ void generate_all_edge_lists(IRFuncs &funcs, char* fl_name, int recursive)
         generate_edge_list(funcs.funcs[i], funcs.regs[i], fp, el + i);
         if (!recursive) fclose(fp);
     }
+    if (fp == NULL)
+    {
+        strcat(fl_name, ".txt");
+        fp = create_edgelist_file(fl_name);
+        free(el);
+        return;
+    }
+    Recursion_helper_stack * rhs = (Recursion_helper_stack *) malloc(sizeof(Recursion_helper_stack));
     if (recursive)
     {
         fprintf(fp, "\nFULL GRAPH:\n\n");
         int idx_offset = 0;
-        Recursion_helper_stack rhs;
-        init_rhs(&rhs);
-        recursively_populate(el, main_idx, &idx_offset, funcs.func_size, &rhs, fp);
+        init_rhs(rhs);
+        recursively_populate(el, main_idx, &idx_offset, funcs.func_size, rhs, fp);
         fclose(fp);
     }
-
+    cleanup(el, rhs, funcs.func_size);
 }
 
 /*
@@ -923,7 +946,9 @@ void analyze_registers(FILE *fp, char fl_name[], int file_size, int recursive){
     if (line)
         free(line);
 
-
+    free(block_map.func_names);
+    free(block_map.funcs);
+    free(block_map.regs);
 
 
     /* Not implemented. This program will brick your computer */
@@ -943,6 +968,7 @@ int main(int argc, char **argv){
     }
 
     fl_name = argv[1];
+    printf("\n\nPROCESSING FILE: %s\n\n", fl_name);
 
     fp = fopen(fl_name,"r");
 
@@ -968,6 +994,8 @@ int main(int argc, char **argv){
     graph_file_ttl[pathname_len] = '\0';
     strcat(graph_file_ttl,"/output_graph/");
     strncat(graph_file_ttl,last+1,size_noll);
+
+    printf("\n\nOUTPUT FILE: %s\n\n", graph_file_ttl);
 
     analyze_registers(fp,graph_file_ttl ,size, 1);
 
