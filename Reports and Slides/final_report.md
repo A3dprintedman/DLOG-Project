@@ -125,119 +125,50 @@ Because no suitable dataset existed, the major outcome of this project is a full
 
 This dataset is significantly more realistic than the IEEE linear-scan dataset, especially due to proper SSA and CFG handling.
 
-1. Experiments
-4.1 Experimental Setup
+### Experiments
 
 We tested the pipeline on small-to-medium C programs to verify correctness:
-
-Purely arithmetic loops
-
-Multiple-function programs
-
-Programs with deep branching and nested loops
-
-Programs including library calls
+- Purely arithmetic loops
+- Multiple-function programs
+- Programs with deep branching and nested loops
+- Programs including library calls
 
 Tools used:
+- LLVM 17 toolchain
+- Python for parsing and liveness analysis
+- NetworkX for graph representation
+- Baseline coloring implementations in Python
 
-LLVM 17 toolchain
-
-Python for parsing and liveness analysis
-
-NetworkX for graph representation
-
-Baseline coloring implementations in Python
-
-4.2 Results
 Correctness of Graph Construction
 
 We validated correctness by manually verifying:
-
-Live-in and live-out sets
-
-φ-node dependencies
-
-Accurate handling of branch divergence and loop back-edges
-
-Interference edges for nested and multi-function programs
+- Live-in and live-out sets
+- φ-node dependencies
+- Accurate handling of branch divergence and loop back-edges
+- Interference edges for nested and multi-function programs
 
 All tests matched expected liveness and conflict behavior.
 
-Interference Graph Characteristics
-
-Across sample programs:
-
-Most interference graphs were sparse, not dense
-
-Many had clear clusters around loops where registers remain live long
-
-φ-node blocks caused bursts of additional interference
-
-Function calls introduced large cliques
-
-These characteristics do not appear in generic graph datasets like DIMACS.
-
-Coloring Baseline Performance
-
-Across sample graphs:
-
-Algorithm	Avg. Colors Used	Runtime
-Greedy (random)	Highest	Fastest
-Largest-First	Fewer colors	Moderate
-Independent-Set	Fewest colors	Slowest
-
-These results match expectations from compiler literature.
-
-4.3 Observations
-
-Real interference graphs have meaningful structural features absent from synthetic datasets.
-
-φ-nodes significantly influence colorability and must be modeled correctly.
-
-Calling conventions drastically alter interference patterns and must be respected.
-
-Dataset quality directly impacts ML model viability—our final dataset resolves key issues in prior work.
-
-Interference graphs generated from real code appear well-suited for training graph neural networks due to their distinct global and local structure.
-
-5. Conclusion and Future Work
-5.1 Contributions
+### Conclusion and Future Work
 
 This project makes several contributions:
-
-A complete pipeline for generating realistic interference graphs from LLVM IR
-
-Correct, SSA-aware liveness analysis implementation
-
-Accurate handling of φ-nodes, CFG semantics, and calling conventions
-
-Baseline classical graph coloring algorithm implementations
-
-A curated dataset of real program interference graphs, suitable for ML research
+- A complete pipeline for generating realistic interference graphs from LLVM IR
+- Correct, SSA-aware liveness analysis implementation
+- Accurate handling of φ-nodes, CFG semantics, and calling conventions
+- Baseline classical graph coloring algorithm implementations
+- A curated dataset of real program interference graphs, suitable for ML research
 
 Although we did not reach the stage of training neural models, we constructed the crucial groundwork needed for future work in learning-assisted register allocation.
 
-5.2 Future Work
-
 Several promising directions remain:
 
-Train Graph Neural Networks or Graph Transformers
-Evaluate whether they can:
-
-Reduce register count
-
-Reduce spill count
-
-Improve coloring time vs. heuristics
-
-Generate canonical subgraph patterns
-Useful for libraries, common idioms, or standard loops.
-
-Expand dataset with large real programs
-Build a massive corpus for research use.
-
-Analyze calling convention edge cases
-Handle AVX registers, volatile registers, and architecture-specific semantics.
-
-Integrate with LLVM
-Replace or enhance the LLVM register allocator directly.
+1. Train Graph Neural Networks or Graph Transformers and evaluate whether they can:
+   - Reduce register count
+   - Reduce spill count
+   - Improve coloring time vs. heuristics
+2. Generate canonical subgraph patterns
+- Useful for libraries, common idioms, or standard loops.
+3. Expand dataset with large real programs
+- Build a massive corpus for research use.
+4. Analyze calling convention edge cases
+- Handle AVX registers, volatile registers, and architecture-specific semantics.
