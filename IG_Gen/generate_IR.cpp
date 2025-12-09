@@ -488,27 +488,38 @@ void compute_successors(char *line,
 
     const char *p;
     size_t instr_idx;
+    size_t original_num_succ, old_succ_len;
 
     instr_idx = block->num_instr - 1;
-
-    block->num_succ = 0;
 
     // First separate out the sub-instructions in the branch line
 
     char token[256];
 
-    block->succ_len = 0;
-
     long tok_len = 0;
     const char * tok_ptr = line;
     tok_ptr = reg_machine(tok_ptr, tok_len);
+    original_num_succ = block->num_succ;
 
     for (; tok_ptr != NULL; tok_ptr = reg_machine(++tok_ptr, tok_len))
     {
-        block->succ_len++;
+        block->num_succ++;
     }
 
-    block->successors = (int*)malloc(block->succ_len * sizeof(int));
+    old_succ_len = block->succ_len;
+    while (block->succ_len <= block->num_succ){
+        block->succ_len <<= 1;
+    }
+
+    if (old_succ_len != block->succ_len){
+
+        block->successors = (int *) realloc(block->successors,block->succ_len);
+
+        if (block->successors == NULL){
+            fprintf(stderr,"Realloc of block->successors failed\n");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     tok_ptr = line;
     tok_ptr = reg_machine(tok_ptr, tok_len);
@@ -521,11 +532,9 @@ void compute_successors(char *line,
         /* I'm assuming it will always be "label %{register}",
          * so walk back 6 steps and check for "label " */
 
-        if (tok_ptr - 6 >= line){
-            if (strncmp(tok_ptr - 6,"label ",6) == 0) {
-                block->successors[block->num_succ] = atoi(p + 1);
-                block->num_succ++;
-            }
+        if (tok_ptr - 6 >= line && strncmp(tok_ptr - 6,"label ",6) == 0) {
+            block->successors[original_num_succ] = atoi(p + 1);
+            original_num_succ++;
         }
         else {
 
@@ -540,19 +549,20 @@ void compute_successors(char *line,
             strcpy(block->instrcts[instr_idx].use[sz - 1],p);
 
         }
+
     }
 }
 
 // Note to self: Function will be on the stack...only need 1
-LINE_TYPE set_up_blocks(char *line, Function &blocks,
+LINE_TYPE set_up_blocks(char *&line, Function &blocks,
                         size_t block_idx,
                         Register_mapping &regMap,
                         int &reg_idx,
-                        FILE *fp){
+                        FILE *fp,
+                        size_t &len){
 
     Block *block;
     int is_phi = FALSE_;
-    size_t len;
 
     /* Dynamic resizing of data structures cuz I started this in c :C */
 
@@ -615,6 +625,11 @@ LINE_TYPE set_up_blocks(char *line, Function &blocks,
 
     if (strncmp(line,"  switch", 8) == 0){
 
+        block->num_succ = 0;
+        block->succ_len = 4;
+
+        block->successors = (int*)malloc(block->succ_len * sizeof(int));
+
         while (line[2] != ']'){
 
             compute_successors(line,block,regMap,reg_idx);
@@ -627,6 +642,12 @@ LINE_TYPE set_up_blocks(char *line, Function &blocks,
 
 
     if (strncmp(line,"  br", 4) == 0){
+
+        block->num_succ = 0;
+        block->succ_len = 2;
+
+        block->successors = (int*)malloc(block->succ_len * sizeof(int));
+
         compute_successors(line,block,regMap,reg_idx);
         return LINE_TYPE::BRANCH;
     }
@@ -1064,7 +1085,11 @@ void analyze_registers(FILE *fp, char fl_name[], int file_size, int recursive){
         }
 
         /* Interesting stuff in here */
-        loc = set_up_blocks(line,block_map.funcs[block_map.func_size],block_idx,block_map.regs[block_map.func_size],reg_idx,fp);
+        loc = set_up_blocks(line,
+                            block_map.funcs[block_map.func_size],
+                            block_idx,
+                            block_map.regs[block_map.func_size],
+                            reg_idx,fp,len);
         in_block = (loc != LINE_TYPE::BRANCH) ? TRUE_ : FALSE_;
 
         if (line[0] == '}'){
@@ -1089,11 +1114,11 @@ void analyze_registers(FILE *fp, char fl_name[], int file_size, int recursive){
         } else { line_idx++; }
     }
 
-    generate_all_edge_lists(block_map, fl_name, recursive);
-
     fclose(fp);
     if (line)
         free(line);
+
+    generate_all_edge_lists(block_map, fl_name, recursive);
 
     for (int i = 0; i < (int)block_map.func_size; i++)
     {
