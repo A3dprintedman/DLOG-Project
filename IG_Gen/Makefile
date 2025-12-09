@@ -11,7 +11,7 @@ OUTPUT_FILES = $(wildcard $(OUT_DIR)/*.txt)
 
 # Source files
 GEN_SRC = generate_IR.cpp
-TARGET = $(GEN_SRC:.cpp=)
+TARGET = $(GEN_SRC:.cp cp=)
 GEN_EXE = ./$(TARGET)
 
 # Object files

@@ -2,7 +2,6 @@
 TIMEOUT_SECONDS=30
 
 GEN_EXE="$1"
-GEN_EXE="$1"
 IR_FILES=("$@")
 gen_count=$#
 fail_count=0
