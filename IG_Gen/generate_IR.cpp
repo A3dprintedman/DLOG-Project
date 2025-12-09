@@ -995,7 +995,7 @@ int main(int argc, char **argv){
     strcat(graph_file_ttl,"/output_graph/");
     strncat(graph_file_ttl,last+1,size_noll);
 
-    printf("\n\nOUTPUT FILE: %s\n\n", graph_file_ttl);
+    printf("\n\nOUTPUT FILE: %s\n\n.txt", graph_file_ttl);
 
     analyze_registers(fp,graph_file_ttl ,size, 1);
 
