@@ -37,3 +37,207 @@ Therefore, the practical contribution of this project shifted toward designing a
 Our results demonstrate that real program interference graphs have structural properties absent from synthetic datasets, and that constructing them correctly requires nontrivial handling of SSA, Phi-nodes, per-block liveness, and function call semantics. While we did not complete training of a neural model, we created a working pipeline capable of generating high-fidelity interference graphs suitable for future ML research.
 
 
+### Problem Description
+
+Efficient register allocation greatly affects execution speed and compiled code quality. Given a limited register file, a compiler attempts to assign a register to each variable without conflict. If too many simultaneously-live variables exist, the compiler must spill some to memory, which significantly slows execution.
+
+This assignment task is equivalent to coloring an interference graph (IG):
+- Each vertex → a virtual register in SSA form
+- Each edge → the two registers are simultaneously live
+- Objective → assign as few colors (registers) as possible
+- Constraint → adjacent vertices cannot share a color
+
+The core problem is:
+
+- How can we accurately construct interference graphs from real LLVM IR files and assess coloring algorithms on these graphs?
+
+The project encountered key challenges:
+1. Existing datasets are unsuitable. DIMACS datasets do not represent interference structure. IEEE datasets use simplistic live-range heuristics, failing to capture SSA semantics, φ-nodes, and control-flow complexity.
+
+2. Constructing interference graphs from real code is nontrivial. It requires the following:
+   - Building a Control Flow Graph (CFG)
+   - Performing per-block liveness analysis
+   - Computing live-in and live-out sets iteratively
+   - Handling φ-nodes correctly
+   - Merging interference across function calls according to calling conventions
+   - Managing multiple functions and files
+
+3. Scaling to large programs. Even a small program produces hundreds or thousands of virtual registers in SSA form.
+
+Thus the central technical contribution of this work is a complete, correct, LLVM-based interference graph generator, which forms the foundation for future learning-based register allocation research.
+
+### Methodology
+We began with LLVM IR, which uses Static Single Assignment (SSA):
+- Each virtual register is assigned exactly once.
+- φ-nodes merge values across control-flow paths.
+- SSA drastically simplifies dependency tracking but complicates liveness.
+
+Our pipeline extracts from LLVM IR:
+- Basic blocks and their instructions
+- Virtual registers defined and used within each block
+- φ-node semantics for loop back-edges and conditional branches
+- Successor relationships forming the control-flow graph
+
+To compute live ranges, we implemented the standard iterative worklist algorithm:
+
+``` sql
+IN[n]  = USE[n] ∪ (OUT[n] – DEF[n])
+OUT[n] = ⋃ IN[s] for all successors s of n
+```
+
+Iteration continues until all IN/OUT sets stabilize.
+
+This produces:
+- The set of variables live-in to each block
+- The set of variables live-out
+- Edges in the interference graph whenever two variables are simultaneously live
+
+Using liveness sets, we construct edges in the interference graph:
+- Variables simultaneously live-in a block interfere
+- Variables simultaneously live-out interfere
+- Variables in φ-nodes interfere according to predecessor edges
+- Function calls require special handling:
+  - Under x86 cdecl, caller-saved registers (EAX, ECX, EDX) must be reloaded
+  - Any variable live across a call must interfere with the function’s entire local register set
+
+Multiple functions are merged by combining their interference graphs and adding supernodes representing call interactions.
+
+We implemented several baseline coloring methods:
+
+Greedy Coloring:
+Nodes are colored in arbitrary or degree-based order.
+
+Largest-First Ordering:
+Nodes processed from highest to lowest degree.
+
+Independent-Set Extraction:
+Maximal independent sets represent sets of registers sharable by the same physical register.
+
+These algorithms serve as baselines for later neural models.
+
+Because no suitable dataset existed, the major outcome of this project is a full dataset-generation pipeline, including:
+
+- Automatic compilation of C/C++ files into LLVM IR
+- Per-function CFG construction
+- Full liveness propagation
+- Generation of interference graphs for each function
+- Storage of graph structure and ground-truth colorings
+
+This dataset is significantly more realistic than the IEEE linear-scan dataset, especially due to proper SSA and CFG handling.
+
+1. Experiments
+4.1 Experimental Setup
+
+We tested the pipeline on small-to-medium C programs to verify correctness:
+
+Purely arithmetic loops
+
+Multiple-function programs
+
+Programs with deep branching and nested loops
+
+Programs including library calls
+
+Tools used:
+
+LLVM 17 toolchain
+
+Python for parsing and liveness analysis
+
+NetworkX for graph representation
+
+Baseline coloring implementations in Python
+
+4.2 Results
+Correctness of Graph Construction
+
+We validated correctness by manually verifying:
+
+Live-in and live-out sets
+
+φ-node dependencies
+
+Accurate handling of branch divergence and loop back-edges
+
+Interference edges for nested and multi-function programs
+
+All tests matched expected liveness and conflict behavior.
+
+Interference Graph Characteristics
+
+Across sample programs:
+
+Most interference graphs were sparse, not dense
+
+Many had clear clusters around loops where registers remain live long
+
+φ-node blocks caused bursts of additional interference
+
+Function calls introduced large cliques
+
+These characteristics do not appear in generic graph datasets like DIMACS.
+
+Coloring Baseline Performance
+
+Across sample graphs:
+
+Algorithm	Avg. Colors Used	Runtime
+Greedy (random)	Highest	Fastest
+Largest-First	Fewer colors	Moderate
+Independent-Set	Fewest colors	Slowest
+
+These results match expectations from compiler literature.
+
+4.3 Observations
+
+Real interference graphs have meaningful structural features absent from synthetic datasets.
+
+φ-nodes significantly influence colorability and must be modeled correctly.
+
+Calling conventions drastically alter interference patterns and must be respected.
+
+Dataset quality directly impacts ML model viability—our final dataset resolves key issues in prior work.
+
+Interference graphs generated from real code appear well-suited for training graph neural networks due to their distinct global and local structure.
+
+5. Conclusion and Future Work
+5.1 Contributions
+
+This project makes several contributions:
+
+A complete pipeline for generating realistic interference graphs from LLVM IR
+
+Correct, SSA-aware liveness analysis implementation
+
+Accurate handling of φ-nodes, CFG semantics, and calling conventions
+
+Baseline classical graph coloring algorithm implementations
+
+A curated dataset of real program interference graphs, suitable for ML research
+
+Although we did not reach the stage of training neural models, we constructed the crucial groundwork needed for future work in learning-assisted register allocation.
+
+5.2 Future Work
+
+Several promising directions remain:
+
+Train Graph Neural Networks or Graph Transformers
+Evaluate whether they can:
+
+Reduce register count
+
+Reduce spill count
+
+Improve coloring time vs. heuristics
+
+Generate canonical subgraph patterns
+Useful for libraries, common idioms, or standard loops.
+
+Expand dataset with large real programs
+Build a massive corpus for research use.
+
+Analyze calling convention edge cases
+Handle AVX registers, volatile registers, and architecture-specific semantics.
+
+Integrate with LLVM
+Replace or enhance the LLVM register allocator directly.
